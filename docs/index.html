@@ -38,6 +38,12 @@
       <p class="sub">Enter NSW postcode or suburb, choose radius, and filter schools by distance.</p>
       <div class="row">
         <input id="location" placeholder="e.g. 2300 or Newcastle" />
+        <select id="sector">
+          <option value="all" selected>All Sectors</option>
+          <option value="government">Government</option>
+          <option value="catholic">Catholic</option>
+          <option value="independent">Independent</option>
+        </select>
         <select id="radius">
           <option value="20">20 km</option>
           <option value="50" selected>50 km</option>
@@ -78,6 +84,7 @@
     };
 
     const locationEl = document.getElementById("location");
+    const sectorEl = document.getElementById("sector");
     const radiusEl = document.getElementById("radius");
     const searchBtn = document.getElementById("searchBtn");
     const copyBtn = document.getElementById("copyBtn");
@@ -146,14 +153,17 @@
       try {
         const center = resolveCenter(locationEl.value);
         const radiusKm = Number(radiusEl.value);
+        const sector = sectorEl.value;
         const rows = state.schools
+          .filter((s) => sector === "all" ? true : String(s.sector).toLowerCase() === sector)
           .map((s) => ({ ...s, distance_km: haversineKm(center.lat, center.lon, s.lat, s.lon) }))
           .filter((s) => s.distance_km <= radiusKm)
           .sort((a, b) => a.distance_km - b.distance_km);
 
         state.lastRows = rows.map((r) => ({ ...r, distance_km: Number(r.distance_km.toFixed(2)) }));
         renderRows(state.lastRows);
-        metaEl.textContent = `${state.lastRows.length} schools within ${radiusKm} km of ${center.label}`;
+        const sectorLabel = sector === "all" ? "all sectors" : sector;
+        metaEl.textContent = `${state.lastRows.length} schools within ${radiusKm} km of ${center.label} (${sectorLabel})`;
         tableEl.hidden = false;
         copyBtn.disabled = state.lastRows.filter((r) => (r.public_email || "").trim().length > 0).length === 0;
       } catch (err) {

@@ -37,6 +37,12 @@
       <p class="sub">Search by NSW postcode or suburb/location text. Distances are centroid-based where postcode coordinates are used.</p>
       <div class="row">
         <input id="location" placeholder="e.g. 2300 or Newcastle" />
+        <select id="sector">
+          <option value="all" selected>All Sectors</option>
+          <option value="government">Government</option>
+          <option value="catholic">Catholic</option>
+          <option value="independent">Independent</option>
+        </select>
         <select id="radius">
           <option value="20">20 km</option>
           <option value="50" selected>50 km</option>
@@ -71,6 +77,7 @@
   <script>
     const runBtn = document.getElementById("run");
     const locationEl = document.getElementById("location");
+    const sectorEl = document.getElementById("sector");
     const radiusEl = document.getElementById("radius");
     const metaEl = document.getElementById("meta");
     const errorEl = document.getElementById("error");
@@ -122,6 +129,7 @@
 
     async function runSearch() {
       const location = locationEl.value.trim();
+      const sector = sectorEl.value;
       const radius = radiusEl.value;
       errorEl.textContent = "";
       metaEl.textContent = "";
@@ -144,10 +152,11 @@
         return;
       }
 
-      metaEl.textContent = `${data.count} schools within ${data.radius_km} km of ${data.resolved_location}`;
-      lastRows = data.results || [];
+      lastRows = (data.results || []).filter((r) => sector === "all" ? true : String(r.sector || "").toLowerCase() === sector);
+      const sectorLabel = sector === "all" ? "all sectors" : sector;
+      metaEl.textContent = `${lastRows.length} schools within ${data.radius_km} km of ${data.resolved_location} (${sectorLabel})`;
       copyBtn.disabled = lastRows.filter((r) => (r.public_email || "").trim()).length === 0;
-      renderRows(data.results);
+      renderRows(lastRows);
       tableEl.hidden = false;
     }
 
