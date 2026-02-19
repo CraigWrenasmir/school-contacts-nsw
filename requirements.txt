@@ -1,0 +1,13 @@
+requests
+beautifulsoup4
+pandas
+lxml
+pyyaml
+tqdm
+sqlite-utils
+urllib3
+fastapi
+uvicorn
+jinja2
+pgeocode
+numpy

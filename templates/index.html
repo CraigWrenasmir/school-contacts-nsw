@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NSW School Radius Search</title>
+  <style>
+    :root {
+      --bg: #f5f8f7;
+      --card: #ffffff;
+      --ink: #1a2a2a;
+      --accent: #0f766e;
+      --muted: #617474;
+      --line: #d9e4e3;
+    }
+    body { margin: 0; font-family: "Avenir Next", "Segoe UI", sans-serif; background: linear-gradient(180deg, #ecf7f4, var(--bg)); color: var(--ink); }
+    .wrap { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04); }
+    h1 { margin: 0 0 1rem; font-size: 1.5rem; }
+    .sub { margin: 0 0 1rem; color: var(--muted); font-size: 0.95rem; }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    input, select, button { border: 1px solid var(--line); border-radius: 10px; padding: 0.65rem 0.8rem; font-size: 0.95rem; }
+    input { min-width: 220px; flex: 1; }
+    button { background: var(--accent); color: #fff; border: 0; cursor: pointer; }
+    .meta { margin-top: 0.75rem; color: var(--muted); font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid var(--line); padding: 0.55rem 0.35rem; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    a { color: #0b5f93; text-decoration: none; }
+    .err { color: #a31515; margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>NSW School Radius Search</h1>
+      <p class="sub">Search by NSW postcode or suburb/location text. Distances are centroid-based where postcode coordinates are used.</p>
+      <div class="row">
+        <input id="location" placeholder="e.g. 2300 or Newcastle" />
+        <select id="radius">
+          <option value="20">20 km</option>
+          <option value="50" selected>50 km</option>
+          <option value="100">100 km</option>
+        </select>
+        <button id="run">Search</button>
+        <button id="copyEmails" type="button" disabled>Copy Emails</button>
+      </div>
+      <div id="meta" class="meta"></div>
+      <div id="copyStatus" class="meta"></div>
+      <div id="error" class="err"></div>
+      <div style="overflow:auto;">
+        <table id="results" hidden>
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Sector</th>
+              <th>Suburb</th>
+              <th>Postcode</th>
+              <th>Distance (km)</th>
+              <th>Email</th>
+              <th>Contact Form</th>
+              <th>Website</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const runBtn = document.getElementById("run");
+    const locationEl = document.getElementById("location");
+    const radiusEl = document.getElementById("radius");
+    const metaEl = document.getElementById("meta");
+    const errorEl = document.getElementById("error");
+    const copyStatusEl = document.getElementById("copyStatus");
+    const copyBtn = document.getElementById("copyEmails");
+    const tableEl = document.getElementById("results");
+    const tbodyEl = tableEl.querySelector("tbody");
+    let lastRows = [];
+
+    function esc(text) {
+      return String(text || "").replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+    }
+
+    function renderRows(rows) {
+      tbodyEl.innerHTML = rows.map((r) => `
+        <tr>
+          <td>${esc(r.school_name)}</td>
+          <td>${esc(r.sector)}</td>
+          <td>${esc(r.suburb)}</td>
+          <td>${esc(r.postcode)}</td>
+          <td>${esc(r.distance_km)}</td>
+          <td>${r.public_email ? `<a href="mailto:${esc(r.public_email)}">${esc(r.public_email)}</a>` : ""}</td>
+          <td>${r.contact_form_url ? `<a href="${esc(r.contact_form_url)}" target="_blank" rel="noopener">Open</a>` : ""}</td>
+          <td>${r.website_url ? `<a href="${esc(r.website_url)}" target="_blank" rel="noopener">Visit</a>` : ""}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function copyEmails() {
+      const emails = [...new Set(
+        lastRows
+          .map((r) => (r.public_email || "").trim())
+          .filter((e) => e.length > 0)
+      )];
+
+      if (!emails.length) {
+        copyStatusEl.textContent = "No public email addresses to copy for current results.";
+        return;
+      }
+
+      const payload = emails.join("\n");
+      try {
+        await navigator.clipboard.writeText(payload);
+        copyStatusEl.textContent = `Copied ${emails.length} email address(es).`;
+      } catch (_err) {
+        copyStatusEl.textContent = "Clipboard copy failed in this browser context.";
+      }
+    }
+
+    async function runSearch() {
+      const location = locationEl.value.trim();
+      const radius = radiusEl.value;
+      errorEl.textContent = "";
+      metaEl.textContent = "";
+      copyStatusEl.textContent = "";
+      tableEl.hidden = true;
+      tbodyEl.innerHTML = "";
+      lastRows = [];
+      copyBtn.disabled = true;
+
+      if (!location) {
+        errorEl.textContent = "Enter a postcode or location.";
+        return;
+      }
+
+      const url = `/api/search?location=${encodeURIComponent(location)}&radius_km=${encodeURIComponent(radius)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        errorEl.textContent = data.error || "Search failed.";
+        return;
+      }
+
+      metaEl.textContent = `${data.count} schools within ${data.radius_km} km of ${data.resolved_location}`;
+      lastRows = data.results || [];
+      copyBtn.disabled = lastRows.filter((r) => (r.public_email || "").trim()).length === 0;
+      renderRows(data.results);
+      tableEl.hidden = false;
+    }
+
+    runBtn.addEventListener("click", runSearch);
+    copyBtn.addEventListener("click", copyEmails);
+    locationEl.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NSW School Contact Radius Search</title>
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --card: #ffffff;
+      --ink: #1a2b2f;
+      --accent: #0b8a7c;
+      --line: #d7e5e2;
+      --muted: #56696c;
+    }
+    body { margin: 0; font-family: "Avenir Next", "Segoe UI", sans-serif; background: linear-gradient(180deg, #eaf6f2, var(--bg)); color: var(--ink); }
+    .wrap { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .sub { margin: 0.6rem 0 1rem; color: var(--muted); }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    input, select, button { border: 1px solid var(--line); border-radius: 10px; padding: 0.65rem 0.85rem; font-size: 0.95rem; }
+    input { flex: 1; min-width: 220px; }
+    button { border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .meta { margin-top: 0.75rem; color: var(--muted); font-size: 0.9rem; }
+    .err { margin-top: 0.5rem; color: #a31515; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid var(--line); padding: 0.55rem 0.35rem; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    a { color: #095d92; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>NSW School Contact Radius Search</h1>
+      <p class="sub">Enter NSW postcode or suburb, choose radius, and filter schools by distance.</p>
+      <div class="row">
+        <input id="location" placeholder="e.g. 2300 or Newcastle" />
+        <select id="radius">
+          <option value="20">20 km</option>
+          <option value="50" selected>50 km</option>
+          <option value="100">100 km</option>
+        </select>
+        <button id="searchBtn">Search</button>
+        <button id="copyBtn" type="button" disabled>Copy Emails</button>
+      </div>
+      <div id="meta" class="meta"></div>
+      <div id="copyMeta" class="meta"></div>
+      <div id="error" class="err"></div>
+      <div style="overflow:auto;">
+        <table id="results" hidden>
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Sector</th>
+              <th>Suburb</th>
+              <th>Postcode</th>
+              <th>Distance (km)</th>
+              <th>Email</th>
+              <th>Contact Form</th>
+              <th>Website</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      schools: [],
+      postcodeCentroids: {},
+      suburbCentroids: [],
+      lastRows: []
+    };
+
+    const locationEl = document.getElementById("location");
+    const radiusEl = document.getElementById("radius");
+    const searchBtn = document.getElementById("searchBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const metaEl = document.getElementById("meta");
+    const copyMetaEl = document.getElementById("copyMeta");
+    const errEl = document.getElementById("error");
+    const tableEl = document.getElementById("results");
+    const tbodyEl = tableEl.querySelector("tbody");
+
+    function esc(text) {
+      return String(text || "").replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+    }
+
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const p = Math.PI / 180;
+      const dLat = (lat2 - lat1) * p;
+      const dLon = (lon2 - lon1) * p;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * p) * Math.cos(lat2 * p) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function resolveCenter(rawQuery) {
+      const query = rawQuery.trim();
+      if (!query) throw new Error("Enter a postcode or suburb.");
+
+      if (/^\d{4}$/.test(query)) {
+        const c = state.postcodeCentroids[query];
+        if (!c) throw new Error(`No NSW coordinate found for postcode ${query}.`);
+        return { lat: c.lat, lon: c.lon, label: `Postcode ${query}` };
+      }
+
+      const lower = query.toLowerCase();
+      const exact = state.suburbCentroids.find((s) => String(s.suburb).toLowerCase() === lower);
+      if (exact) return { lat: exact.lat, lon: exact.lon, label: `Suburb ${exact.suburb}` };
+
+      const partial = state.suburbCentroids.find((s) => String(s.suburb).toLowerCase().includes(lower));
+      if (partial) return { lat: partial.lat, lon: partial.lon, label: `Suburb ${partial.suburb}` };
+
+      throw new Error(`Could not resolve location "${query}" to NSW suburb/postcode.`);
+    }
+
+    function renderRows(rows) {
+      tbodyEl.innerHTML = rows.map((r) => `
+        <tr>
+          <td>${esc(r.school_name)}</td>
+          <td>${esc(r.sector)}</td>
+          <td>${esc(r.suburb)}</td>
+          <td>${esc(r.postcode)}</td>
+          <td>${esc(r.distance_km)}</td>
+          <td>${r.public_email ? `<a href="mailto:${esc(r.public_email)}">${esc(r.public_email)}</a>` : ""}</td>
+          <td>${r.contact_form_url ? `<a href="${esc(r.contact_form_url)}" target="_blank" rel="noopener">Open</a>` : ""}</td>
+          <td>${r.website_url ? `<a href="${esc(r.website_url)}" target="_blank" rel="noopener">Visit</a>` : ""}</td>
+        </tr>
+      `).join("");
+    }
+
+    function runSearch() {
+      errEl.textContent = "";
+      copyMetaEl.textContent = "";
+      metaEl.textContent = "";
+      tableEl.hidden = true;
+      copyBtn.disabled = true;
+      state.lastRows = [];
+
+      try {
+        const center = resolveCenter(locationEl.value);
+        const radiusKm = Number(radiusEl.value);
+        const rows = state.schools
+          .map((s) => ({ ...s, distance_km: haversineKm(center.lat, center.lon, s.lat, s.lon) }))
+          .filter((s) => s.distance_km <= radiusKm)
+          .sort((a, b) => a.distance_km - b.distance_km);
+
+        state.lastRows = rows.map((r) => ({ ...r, distance_km: Number(r.distance_km.toFixed(2)) }));
+        renderRows(state.lastRows);
+        metaEl.textContent = `${state.lastRows.length} schools within ${radiusKm} km of ${center.label}`;
+        tableEl.hidden = false;
+        copyBtn.disabled = state.lastRows.filter((r) => (r.public_email || "").trim().length > 0).length === 0;
+      } catch (err) {
+        errEl.textContent = err.message || "Search failed.";
+      }
+    }
+
+    async function copyEmails() {
+      const emails = [...new Set(
+        state.lastRows
+          .map((r) => (r.public_email || "").trim())
+          .filter((x) => x.length > 0)
+      )];
+      if (!emails.length) {
+        copyMetaEl.textContent = "No public emails found in current result set.";
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(emails.join("\n"));
+        copyMetaEl.textContent = `Copied ${emails.length} unique email address(es).`;
+      } catch (_e) {
+        copyMetaEl.textContent = "Clipboard copy failed in this browser context.";
+      }
+    }
+
+    async function init() {
+      const [schools, postcodes, suburbs] = await Promise.all([
+        fetch("./data/schools.min.json").then((r) => r.json()),
+        fetch("./data/postcode_centroids.min.json").then((r) => r.json()),
+        fetch("./data/suburb_centroids.min.json").then((r) => r.json())
+      ]);
+      state.schools = schools;
+      state.postcodeCentroids = postcodes;
+      state.suburbCentroids = suburbs;
+      metaEl.textContent = `Loaded ${schools.length} schools.`;
+    }
+
+    searchBtn.addEventListener("click", runSearch);
+    copyBtn.addEventListener("click", copyEmails);
+    locationEl.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+    init().catch((err) => {
+      errEl.textContent = `Failed to load data files: ${err.message || err}`;
+    });
+  </script>
+</body>
+</html>

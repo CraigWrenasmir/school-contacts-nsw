@@ -1,0 +1,31 @@
+user_agent: "CraigSmith-EducationalResearchContactBuilder/1.0 (+Australia)"
+request_delay_seconds: 1.0
+timeout_seconds: 30
+max_retries: 3
+backoff_factor: 1.5
+
+sources:
+  government:
+    source_directory_url: "https://www.data.nsw.gov.au/data/dataset/nsw-education-nsw-public-schools-master-dataset"
+    dataset_csv_url: "https://data.nsw.gov.au/data/dataset/78c10ea3-8d04-4c9c-b255-bbf8547e37e7/resource/3e6d5f6a-055c-440d-a690-fc0537c31095/download/master_dataset.csv"
+
+  independent:
+    source_directory_url: "https://www.isnsw.edu.au/about-independent-schools-nsw/independent-school-finder"
+    directory_urls:
+      - "https://www.isnsw.edu.au/about-independent-schools-nsw/independent-school-finder"
+
+  catholic:
+    source_directory_url: "https://www.csnsw.catholic.edu.au/school-finder"
+    directory_urls:
+      - "https://www.csnsw.catholic.edu.au/school-finder"
+
+output:
+  government_csv: "outputs/01_government.csv"
+  independent_csv: "outputs/02_independent.csv"
+  catholic_csv: "outputs/03_catholic.csv"
+  merged_csv: "outputs/schools_nsw_contacts.csv"
+  merged_sqlite: "outputs/schools_nsw_contacts.sqlite"
+
+logging:
+  scrape_log: "logs/scrape_log.txt"
+  error_log: "logs/errors.txt"

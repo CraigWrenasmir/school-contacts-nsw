@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+logs/*.txt
+tmp_*.js
+tmp_*.html
+outputs/01_government.csv
+outputs/02_independent.csv
+outputs/03_catholic.csv
