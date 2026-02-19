@@ -3,31 +3,57 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Australian School Contact Search</title>
-  <style>
-    body { margin:0; font-family:"Avenir Next","Segoe UI",sans-serif; background:linear-gradient(180deg,#e8f5f1,#f6f9f8); color:#173033; }
-    .wrap { max-width:980px; margin:2rem auto; padding:0 1rem; }
-    h1 { margin:0 0 .5rem; }
-    p { color:#4f6668; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.8rem; margin-top:1rem; }
-    a.card { display:block; text-decoration:none; background:#fff; border:1px solid #d7e5e2; border-radius:12px; padding:1rem; color:#173033; box-shadow:0 8px 20px rgba(0,0,0,.03); }
-    .tag { display:inline-block; margin-top:.5rem; font-size:.8rem; color:#0b6f64; }
-  </style>
+  <title>New South Wales School Contact Radius Search</title>
+  <link rel="stylesheet" href="./state.css" />
 </head>
 <body>
   <div class="wrap">
-    <h1>Australian School Contact Radius Search</h1>
-    <p>Select a state or territory. Each page loads only its own dataset for faster performance.</p>
-    <div class="grid">
-      <a class="card" href="./nsw.html"><strong>New South Wales</strong><div class="tag">Live</div></a>
-      <a class="card" href="./vic.html"><strong>Victoria</strong><div class="tag">Live</div></a>
-      <a class="card" href="./qld.html"><strong>Queensland</strong><div class="tag">Scaffolded</div></a>
-      <a class="card" href="./wa.html"><strong>Western Australia</strong><div class="tag">Scaffolded</div></a>
-      <a class="card" href="./sa.html"><strong>South Australia</strong><div class="tag">Scaffolded</div></a>
-      <a class="card" href="./tas.html"><strong>Tasmania</strong><div class="tag">Scaffolded</div></a>
-      <a class="card" href="./act.html"><strong>Australian Capital Territory</strong><div class="tag">Scaffolded</div></a>
-      <a class="card" href="./nt.html"><strong>Northern Territory</strong><div class="tag">Scaffolded</div></a>
+    <div class="card">
+      <h1 id="pageTitle"></h1>
+      <p id="pageSub" class="sub"></p>
+      <div class="row">
+        <input id="location" placeholder="e.g. postcode or suburb" />
+        <select id="sector">
+          <option value="all" selected>All Sectors</option>
+          <option value="government">Government</option>
+          <option value="catholic">Catholic</option>
+          <option value="independent">Independent</option>
+        </select>
+        <select id="radius">
+          <option value="20">20 km</option>
+          <option value="50" selected>50 km</option>
+          <option value="100">100 km</option>
+        </select>
+        <button id="searchBtn">Search</button>
+        <button id="copyBtn" type="button" disabled>Copy Emails</button>
+      </div>
+      <div id="meta" class="meta"></div>
+      <div id="copyMeta" class="meta"></div>
+      <div id="error" class="err"></div>
+      <div style="overflow:auto;">
+        <table id="results" hidden>
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Sector</th>
+              <th>Suburb</th>
+              <th>Postcode</th>
+              <th>Distance (km)</th>
+              <th>Email</th>
+              <th>Contact Form</th>
+              <th>Website</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
+
+  <script>
+    window.STATE_CODE = "nsw";
+    window.STATE_NAME = "New South Wales";
+  </script>
+  <script src="./js/state-search.js"></script>
 </body>
 </html>
