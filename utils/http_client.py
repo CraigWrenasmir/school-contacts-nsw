@@ -64,13 +64,17 @@ class EthicalHttpClient:
         parser = RobotFileParser()
         parser.set_url(robots_url)
         try:
-            robots_text = self._fetch_robots_text(robots_url)
-            if not robots_text and parsed.scheme == "https":
+            status_code, robots_text = self._fetch_robots_text(robots_url)
+            if (not robots_text and status_code != 404) and parsed.scheme == "https":
                 # Fallback for environments with older TLS stacks.
                 http_robots_url = f"http://{parsed.netloc}/robots.txt"
-                robots_text = self._fetch_robots_text(http_robots_url)
+                status_code, robots_text = self._fetch_robots_text(http_robots_url)
+
             if robots_text:
                 parser.parse(robots_text.splitlines())
+            elif status_code == 404:
+                # No robots.txt published: treat as crawl-allowed.
+                parser.parse(["User-agent: *", "Disallow:"])
             else:
                 raise RuntimeError("robots fetch failed")
         except Exception:
@@ -81,14 +85,14 @@ class EthicalHttpClient:
         self._robots_cache[base] = parser
         return parser
 
-    def _fetch_robots_text(self, robots_url: str) -> str:
+    def _fetch_robots_text(self, robots_url: str) -> tuple[int | None, str]:
         try:
             self._rate_limit()
             response = self.session.get(robots_url, timeout=self.config.timeout_seconds)
             self._last_request_ts = time.time()
             if response.status_code >= 400:
-                return ""
-            return response.text or ""
+                return int(response.status_code), ""
+            return int(response.status_code), response.text or ""
         except requests.exceptions.SSLError:
             # Local TLS compatibility fallback using curl.
             cmd = [
@@ -104,10 +108,13 @@ class EthicalHttpClient:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             self._last_request_ts = time.time()
             if result.returncode != 0:
-                return ""
-            return result.stdout or ""
+                return None, ""
+            text = result.stdout or ""
+            if "<title>404" in text.lower():
+                return 404, ""
+            return 200, text
         except Exception:
-            return ""
+            return None, ""
 
     def is_allowed(self, url: str) -> bool:
         parser = self._get_robot_parser(url)
