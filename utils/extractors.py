@@ -21,8 +21,12 @@ GENERAL_PREFIXES = (
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 EMAIL_EXACT_RE = re.compile(r"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", re.IGNORECASE)
 PERSONAL_STYLE_RE = re.compile(r"^[a-z]+\.[a-z]+@", re.IGNORECASE)
-OBFUSCATED_EMAIL_RE = re.compile(
-    r"\b([A-Z0-9._%+-]+)\s*(?:\(|\[|\{)?(?:at|@)(?:\)|\]|\})?\s*([A-Z0-9.-]+)\s*(?:\(|\[|\{)?(?:dot|\.)(?:\)|\]|\})?\s*([A-Z]{2,})\b",
+OBFUSCATED_EMAIL_BRACKET_RE = re.compile(
+    r"\b([A-Z0-9._%+-]{2,})\s*(?:\(|\[|\{)\s*at\s*(?:\)|\]|\})\s*([A-Z0-9.-]{2,})\s*(?:\(|\[|\{)\s*dot\s*(?:\)|\]|\})\s*([A-Z]{2,})\b",
+    re.IGNORECASE,
+)
+OBFUSCATED_EMAIL_WORD_RE = re.compile(
+    r"\b([A-Z0-9._%+-]{2,})\s+at\s+([A-Z0-9.-]{2,})\s+dot\s+([A-Z]{2,})\b",
     re.IGNORECASE,
 )
 POSTCODE_RE = re.compile(r"\b(\d{4})\b")
@@ -115,7 +119,9 @@ def classify_public_email(
         return None, "invalid", "invalid_tld"
 
     website_host = _extract_hostname(website_url)
-    if website_host and not _domains_related(domain, website_host):
+    # For directory-provided records, domain mismatch with website is common and not
+    # a reliable signal. Only enforce strict domain relationship for website text extraction.
+    if website_host and source not in {"directory", "mixed"} and not _domains_related(domain, website_host):
         if source == "text":
             return None, "invalid", "unrelated_domain_low_confidence"
         return clean, "suspicious", "unrelated_domain"
@@ -127,7 +133,9 @@ def extract_emails_from_text(text: str) -> list[str]:
     if not text:
         return []
     emails = EMAIL_RE.findall(text)
-    for local, domain, tld in OBFUSCATED_EMAIL_RE.findall(text):
+    for local, domain, tld in OBFUSCATED_EMAIL_BRACKET_RE.findall(text):
+        emails.append(f"{local}@{domain}.{tld}")
+    for local, domain, tld in OBFUSCATED_EMAIL_WORD_RE.findall(text):
         emails.append(f"{local}@{domain}.{tld}")
     return _unique(emails)
 
@@ -194,16 +202,13 @@ def choose_general_email(
         return None
 
     validated = []
-    suspicious = []
     for email in clean:
         normalised, status, _ = classify_public_email(email, website_url=website_url, source=source)
         if not normalised:
             continue
         if status == "valid":
             validated.append(normalised)
-        else:
-            suspicious.append(normalised)
-    candidates = validated or suspicious
+    candidates = validated
     if not candidates:
         return None
 
