@@ -63,6 +63,9 @@ def _unique(values: Iterable[str]) -> list[str]:
 def _normalise_email_candidate(value: str) -> str:
     clean = INVISIBLE_CHARS_RE.sub("", value or "")
     clean = clean.strip().lower().strip(".,;:!?\"'`()[]{}<>")
+    # Strip URL-encoded spaces that sometimes leak from href attributes (%20, +)
+    while clean.startswith(("%20", "+")):
+        clean = clean.lstrip("%20").lstrip("+").lstrip()
     return clean
 
 
