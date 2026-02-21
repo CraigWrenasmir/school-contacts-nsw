@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How to use — School Contact Radius Search</title>
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --card: #ffffff;
+      --ink: #1a2b2f;
+      --accent: #0b8a7c;
+      --accent-dark: #076b60;
+      --line: #d7e5e2;
+      --muted: #56696c;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: linear-gradient(160deg, #d8f0eb 0%, var(--bg) 45%);
+      color: var(--ink);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+
+    .topnav {
+      margin-bottom: 2rem;
+    }
+
+    .topnav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .topnav a:hover { text-decoration: underline; }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .hero-icon {
+      font-size: 2.4rem;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero h1 {
+      margin: 0 0 0.4rem;
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.6rem 1.8rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }
+
+    .card h2 {
+      margin: 0 0 1rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card h2 .icon { font-size: 1.15rem; }
+
+    /* ── Steps ── */
+    .steps { list-style: none; margin: 0; padding: 0; }
+
+    .steps li {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .steps li:last-child { margin-bottom: 0; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-top: 0.1rem;
+    }
+
+    .step-body { flex: 1; }
+    .step-body strong { display: block; margin-bottom: 0.2rem; }
+    .step-body p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+
+    /* ── Feature rows ── */
+    .feature-list { list-style: none; margin: 0; padding: 0; }
+
+    .feature-list li {
+      border-bottom: 1px solid var(--line);
+      padding: 0.75rem 0;
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+      font-size: 0.93rem;
+    }
+
+    .feature-list li:last-child { border-bottom: none; padding-bottom: 0; }
+    .feature-list li:first-child { padding-top: 0; }
+
+    .feature-label {
+      flex-shrink: 0;
+      min-width: 160px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .feature-desc { color: var(--muted); }
+
+    /* ── FAQ ── */
+    .faq { list-style: none; margin: 0; padding: 0; }
+
+    .faq li {
+      border-bottom: 1px solid var(--line);
+      padding: 0.9rem 0;
+    }
+
+    .faq li:last-child { border-bottom: none; padding-bottom: 0; }
+    .faq li:first-child { padding-top: 0; }
+
+    .faq-q {
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      font-size: 0.95rem;
+    }
+
+    .faq-a {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    /* ── Tip box ── */
+    .tip {
+      background: #f0faf8;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+
+    .tip strong { color: var(--ink); }
+
+    /* ── Footer ── */
+    .footnote {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="topnav">
+      <a href="./index.html">← Back to home</a>
+    </div>
+
+    <div class="hero">
+      <div class="hero-icon">📖</div>
+      <h1>How to use this site</h1>
+      <p>Everything you need to find, select, and export school contacts.</p>
+    </div>
+
+    <!-- Quick start -->
+    <div class="card">
+      <h2><span class="icon">🚀</span> Quick start</h2>
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <strong>Choose a state or territory</strong>
+            <p>From the homepage, click the card for the region you want to search. Each card shows how many schools are in the database.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <strong>Enter a location and radius</strong>
+            <p>Type a postcode (e.g. <em>2300</em>) or suburb name (e.g. <em>Newcastle</em>) into the search box. Choose your radius — 5 km is a good starting point for metro areas, 20–50 km for regional.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <strong>Copy or export what you need</strong>
+            <p>Use <strong>Copy All Emails</strong> to grab every email in the results, or tick individual schools first to copy or download just a specific cohort.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- Feature guide -->
+    <div class="card">
+      <h2><span class="icon">🛠</span> Feature guide</h2>
+      <ul class="feature-list">
+        <li>
+          <span class="feature-label">Sector filter</span>
+          <span class="feature-desc">Narrow results to Government, Catholic, or Independent schools using the dropdown next to the search box.</span>
+        </li>
+        <li>
+          <span class="feature-label">Emails only</span>
+          <span class="feature-desc">Toggle this button to hide schools that don't have a public email address, so you only see actionable contacts.</span>
+        </li>
+        <li>
+          <span class="feature-label">Checkboxes</span>
+          <span class="feature-desc">Tick individual rows to build a custom cohort. Use the checkbox in the column header to select or deselect everything at once. The header checkbox shows a dash (—) when only some rows are selected.</span>
+        </li>
+        <li>
+          <span class="feature-label">Copy All Emails</span>
+          <span class="feature-desc">When no rows are checked, copies every email address in the current results to your clipboard — one address per line, ready to paste into your email client's BCC field.</span>
+        </li>
+        <li>
+          <span class="feature-label">Copy N Selected</span>
+          <span class="feature-desc">When rows are checked, the copy button changes to show how many are selected. Copying in this mode uses the richer <em>School Name &lt;email@address&gt;</em> format, which most email clients will display as a named recipient.</span>
+        </li>
+        <li>
+          <span class="feature-label">Download CSV</span>
+          <span class="feature-desc">Exports the current results as a spreadsheet. If rows are selected, only those rows are included. The filename reflects the search — e.g. <em>schools-nsw-suburb-newcastle-10km-5selected.csv</em>.</span>
+        </li>
+        <li>
+          <span class="feature-label">Contact Form / Website</span>
+          <span class="feature-desc">Where no public email is available, a link to the school's contact form or website may still be shown. These open in a new tab.</span>
+        </li>
+      </ul>
+      <div class="tip">
+        <strong>Tip:</strong> Selecting rows and then toggling <em>Emails only</em> will reset your selection — so apply any filters before you start ticking.
+      </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="card">
+      <h2><span class="icon">💬</span> Frequently asked questions</h2>
+      <ul class="faq">
+        <li>
+          <p class="faq-q">Why do some schools show no email address?</p>
+          <p class="faq-a">Not every school publishes a direct email address on their website. Many Catholic and independent schools use web-based contact forms instead. Where possible we've included a link to that form in the Contact Form column. Coverage varies by state — government schools generally have the best email coverage.</p>
+        </li>
+        <li>
+          <p class="faq-q">Why are phone numbers missing for some states?</p>
+          <p class="faq-a">WA, SA, TAS, and ACT schools were sourced from the national ACARA dataset, which doesn't include phone numbers. NSW, VIC, QLD, and NT schools have phone data from their respective state education directories.</p>
+        </li>
+        <li>
+          <p class="faq-q">Where does the data come from?</p>
+          <p class="faq-a">School records come from state and territory education department directories and the national ACARA school register. Email addresses are collected only from publicly listed pages on each school's own website — no private or scraped data is used.</p>
+        </li>
+        <li>
+          <p class="faq-q">How current is the data?</p>
+          <p class="faq-a">The database was compiled in early 2026. School contact details do change — if you find an out-of-date address, the school's website will always have the most current information.</p>
+        </li>
+        <li>
+          <p class="faq-q">I can't find a school I know exists — why?</p>
+          <p class="faq-a">The search covers schools within the chosen radius of the suburb or postcode you entered. Try increasing your radius, or check the spelling of your suburb. If the school is in a different state to the one you're searching, switch to that state's page from the homepage.</p>
+        </li>
+        <li>
+          <p class="faq-q">What's the best way to email a curated list of schools?</p>
+          <p class="faq-a">Tick the schools you want, then use <strong>Copy N Selected</strong>. This copies addresses in <em>Name &lt;email&gt;</em> format. Paste the whole block into your email client's BCC field — most clients (Gmail, Outlook, Apple Mail) will recognise each line as a separate named recipient automatically.</p>
+        </li>
+        <li>
+          <p class="faq-q">Can I search across multiple states at once?</p>
+          <p class="faq-a">Not currently — each state has its own page and database. For cross-border searches (e.g. the ACT/NSW border region), run a search on each relevant state page and combine your exports.</p>
+        </li>
+      </ul>
+    </div>
+
+    <p class="footnote">
+      <a href="./index.html">← Back to home</a>
+    </p>
+
+  </div>
+</body>
+</html>
