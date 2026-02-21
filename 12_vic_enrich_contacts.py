@@ -3,11 +3,14 @@ from __future__ import annotations
 import logging
 import re
 import argparse
+import subprocess
+from io import BytesIO
 from datetime import date
 from pathlib import Path
 from urllib.parse import urljoin
 
 import pandas as pd
+import requests
 import yaml
 from bs4 import BeautifulSoup
 
@@ -70,11 +73,12 @@ def ensure_http(url: str | None) -> str | None:
     return "https://" + s
 
 
-def load_vic_gov_index(client: EthicalHttpClient) -> dict[tuple[str, str], dict]:
+def load_vic_gov_index(client: EthicalHttpClient) -> tuple[dict[tuple[str, str], dict], dict[str, dict]]:
     r = client.get(FINDMYSCHOOL_GEOJSON)
     r.raise_for_status()
     data = r.json()
     idx: dict[tuple[str, str], dict] = {}
+    by_name: dict[str, list[dict]] = {}
     for f in data.get("features", []):
         p = f.get("properties", {})
         name = norm_name(p.get("School_Name", ""))
@@ -82,14 +86,23 @@ def load_vic_gov_index(client: EthicalHttpClient) -> dict[tuple[str, str], dict]
         if not name:
             continue
         idx[(name, postcode)] = p
-    return idx
+        by_name.setdefault(name, []).append(p)
+    unique_name = {name: rows[0] for name, rows in by_name.items() if len(rows) == 1}
+    return idx, unique_name
 
 
-def load_vic_school_urls_from_acara() -> dict[tuple[str, str], str]:
-    raw = pd.read_excel(ACARA_SCHOOL_PROFILE_XLSX, sheet_name="SchoolProfile 2025", dtype=str)
+def load_vic_school_urls_from_acara(client: EthicalHttpClient) -> tuple[dict[tuple[str, str], str], dict[str, str]]:
+    try:
+        resp = client.get(ACARA_SCHOOL_PROFILE_XLSX)
+        if resp.status_code >= 400:
+            return {}, {}
+        raw = pd.read_excel(BytesIO(resp.content), sheet_name="SchoolProfile 2025", dtype=str)
+    except Exception:
+        return {}, {}
     raw = raw[raw["State"].fillna("").str.upper() == "VIC"].copy()
 
     idx: dict[tuple[str, str], str] = {}
+    by_name: dict[str, list[str]] = {}
     for _, row in raw.iterrows():
         school_name = norm_name(row.get("School Name", ""))
         postcode = str(row.get("Postcode") or "").strip()
@@ -97,18 +110,56 @@ def load_vic_school_urls_from_acara() -> dict[tuple[str, str], str]:
         if not school_name or not postcode or not website:
             continue
         idx[(school_name, postcode)] = website
-    return idx
+        by_name.setdefault(school_name, []).append(website)
+    unique_name = {name: urls[0] for name, urls in by_name.items() if len(set(urls)) == 1}
+    return idx, unique_name
+
+
+def get_with_tls_fallback(
+    client: EthicalHttpClient,
+    url: str,
+    error_logger: logging.Logger,
+) -> tuple[int | None, str | None]:
+    try:
+        resp = client.get(url)
+        return int(resp.status_code), resp.text
+    except PermissionError as exc:
+        error_logger.error("Blocked by robots.txt for %s: %s", url, exc)
+        return None, None
+    except requests.exceptions.SSLError as exc:
+        error_logger.error("SSL failed via requests for %s; trying curl fallback: %s", url, exc)
+        try:
+            cmd = [
+                "curl",
+                "-L",
+                "-sS",
+                "--max-time",
+                str(int(CONFIG["timeout_seconds"])),
+                "-A",
+                CONFIG["user_agent"],
+                url,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                error_logger.error("curl fallback failed (%s): %s", url, (result.stderr or "").strip())
+                return None, None
+            return 200, result.stdout
+        except Exception as curl_exc:
+            error_logger.error("curl fallback exception (%s): %s", url, curl_exc)
+            return None, None
 
 
 def enrich_from_homepage(client: EthicalHttpClient, website_url: str) -> tuple[str | None, str | None]:
     def extract_from_soup(soup: BeautifulSoup, base_url: str) -> tuple[str | None, str | None]:
         text = soup.get_text("\n", strip=True)
-        emails = (
-            extract_mailto_emails(soup)
-            + extract_cloudflare_protected_emails(soup)
-            + extract_emails_from_text(text)
+        mailto_emails = extract_mailto_emails(soup)
+        cloudflare_emails = extract_cloudflare_protected_emails(soup)
+        text_emails = extract_emails_from_text(text)
+        email = (
+            choose_general_email(mailto_emails, website_url=base_url, source="mailto")
+            or choose_general_email(cloudflare_emails, website_url=base_url, source="cloudflare")
+            or choose_general_email(text_emails, website_url=base_url, source="text")
         )
-        email = choose_general_email(emails)
         form_url = extract_contact_form_url(soup, base_url)
         return email, form_url
 
@@ -142,10 +193,10 @@ def enrich_from_homepage(client: EthicalHttpClient, website_url: str) -> tuple[s
         return out[:8]
 
     try:
-        resp = client.get(website_url)
-        if resp.status_code >= 400:
+        status_code, html = get_with_tls_fallback(client, website_url, error_logger=logging.getLogger("errors"))
+        if not html or (status_code is not None and status_code >= 400):
             return None, None
-        soup = BeautifulSoup(resp.text, "lxml")
+        soup = BeautifulSoup(html, "lxml")
         email, form_url = extract_from_soup(soup, website_url)
         if email and form_url:
             return email, form_url
@@ -153,10 +204,10 @@ def enrich_from_homepage(client: EthicalHttpClient, website_url: str) -> tuple[s
         # Follow likely contact pages to maximize email capture.
         for cu in candidate_contact_urls(soup, website_url):
             try:
-                cr = client.get(cu)
-                if cr.status_code >= 400:
+                c_status_code, c_html = get_with_tls_fallback(client, cu, error_logger=logging.getLogger("errors"))
+                if not c_html or (c_status_code is not None and c_status_code >= 400):
                     continue
-                cs = BeautifulSoup(cr.text, "lxml")
+                cs = BeautifulSoup(c_html, "lxml")
                 ce, cf = extract_from_soup(cs, cu)
                 if ce and not email:
                     email = ce
@@ -192,28 +243,29 @@ def main() -> None:
     http_cfg = HttpConfig(
         user_agent=CONFIG["user_agent"],
         request_delay_seconds=CONFIG["request_delay_seconds"],
-        timeout_seconds=min(int(CONFIG["timeout_seconds"]), 10),
-        max_retries=1,
-        backoff_factor=0.5,
+        timeout_seconds=min(int(CONFIG["timeout_seconds"]), 7),
+        max_retries=0,
+        backoff_factor=0.0,
     )
     client = EthicalHttpClient(http_cfg, scrape_logger=scrape_logger)
 
-    gov_index = load_vic_gov_index(client)
-    acara_urls = load_vic_school_urls_from_acara()
+    gov_index, gov_by_name = load_vic_gov_index(client)
+    acara_urls, acara_by_name = load_vic_school_urls_from_acara(client)
 
     mapped = 0
     for i, row in df.iterrows():
         key = (norm_name(row.get("school_name", "")), str(row.get("postcode") or "").strip())
+        school_name_key = norm_name(row.get("school_name", ""))
         sector = (row.get("sector") or "").strip().lower()
 
         # ACARA official school profile has cross-sector website URLs.
-        acara_website = acara_urls.get(key)
+        acara_website = acara_urls.get(key) or acara_by_name.get(school_name_key)
         if acara_website:
             df.at[i, "website_url"] = acara_website
 
         # Keep authoritative VIC government phone + website where available.
         if sector == "government":
-            p = gov_index.get(key)
+            p = gov_index.get(key) or gov_by_name.get(school_name_key)
             if not p:
                 continue
             website = ensure_http(p.get("School_Website"))
@@ -223,6 +275,7 @@ def main() -> None:
             if phone:
                 df.at[i, "phone"] = phone
             mapped += 1
+    print(f"VIC mapping prepared: gov_mapped={mapped}, acara_url_keys={len(acara_urls)}", flush=True)
 
     processed = 0
     attempted = 0
