@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
 from datetime import date
 from pathlib import Path
 from urllib.parse import urljoin
 
 import pandas as pd
+import requests
 import yaml
 from bs4 import BeautifulSoup
 
@@ -56,6 +58,40 @@ def ensure_http(url: str | None) -> str | None:
     return "https://" + s
 
 
+def get_with_tls_fallback(
+    client: EthicalHttpClient,
+    url: str,
+    error_logger: logging.Logger,
+) -> tuple[int | None, str | None]:
+    try:
+        resp = client.get(url)
+        return int(resp.status_code), resp.text
+    except PermissionError as exc:
+        error_logger.error("Blocked by robots.txt for %s: %s", url, exc)
+        return None, None
+    except requests.exceptions.SSLError as exc:
+        error_logger.error("SSL failed via requests for %s; trying curl fallback: %s", url, exc)
+        try:
+            cmd = [
+                "curl",
+                "-L",
+                "-sS",
+                "--max-time",
+                str(int(CONFIG["timeout_seconds"])),
+                "-A",
+                CONFIG["user_agent"],
+                url,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                error_logger.error("curl fallback failed (%s): %s", url, (result.stderr or "").strip())
+                return None, None
+            return 200, result.stdout
+        except Exception as curl_exc:
+            error_logger.error("curl fallback exception (%s): %s", url, curl_exc)
+            return None, None
+
+
 def enrich_from_homepage(client: EthicalHttpClient, website_url: str) -> tuple[str | None, str | None]:
     def extract_from_soup(soup: BeautifulSoup, base_url: str) -> tuple[str | None, str | None]:
         all_text = soup.get_text("\n", strip=True)
@@ -100,20 +136,20 @@ def enrich_from_homepage(client: EthicalHttpClient, website_url: str) -> tuple[s
         return out[:8]
 
     try:
-        resp = client.get(website_url)
-        if resp.status_code >= 400:
+        status_code, html = get_with_tls_fallback(client, website_url, error_logger=logging.getLogger("errors"))
+        if not html or (status_code is not None and status_code >= 400):
             return None, None
-        soup = BeautifulSoup(resp.text, "lxml")
+        soup = BeautifulSoup(html, "lxml")
         email, form_url = extract_from_soup(soup, website_url)
         if email and form_url:
             return email, form_url
 
         for cu in candidate_contact_urls(soup, website_url):
             try:
-                cr = client.get(cu)
-                if cr.status_code >= 400:
+                c_status_code, c_html = get_with_tls_fallback(client, cu, error_logger=logging.getLogger("errors"))
+                if not c_html or (c_status_code is not None and c_status_code >= 400):
                     continue
-                cs = BeautifulSoup(cr.text, "lxml")
+                cs = BeautifulSoup(c_html, "lxml")
                 ce, cf = extract_from_soup(cs, cu)
                 if ce and not email:
                     email = ce
@@ -145,9 +181,9 @@ def main() -> None:
     http_cfg = HttpConfig(
         user_agent=CONFIG["user_agent"],
         request_delay_seconds=CONFIG["request_delay_seconds"],
-        timeout_seconds=min(int(CONFIG["timeout_seconds"]), 10),
-        max_retries=1,
-        backoff_factor=0.5,
+        timeout_seconds=min(int(CONFIG["timeout_seconds"]), 7),
+        max_retries=0,
+        backoff_factor=0.0,
     )
     client = EthicalHttpClient(http_cfg, scrape_logger=scrape_logger)
 
