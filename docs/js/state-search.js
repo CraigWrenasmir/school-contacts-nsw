@@ -19,7 +19,8 @@
 
   let currentRows = []; // displayed rows (may be filtered by emailsOnly)
   let flavourEl = null;
-  let emailsOnlyEl = null;
+  let emailsOnlyBtn = null;
+  let emailsOnlyActive = false;
   let downloadBtn = null;
 
   const locationEl = document.getElementById("location");
@@ -90,8 +91,7 @@
   function updateMeta() {
     if (!state.lastSearch) return;
     const { center, radiusKm, sectorLabel } = state.lastSearch;
-    const emailsOnly = emailsOnlyEl && emailsOnlyEl.checked;
-    const suffix = emailsOnly
+    const suffix = emailsOnlyActive
       ? ` — ${currentRows.length} of ${state.lastRows.length} have an email`
       : "";
     metaEl.textContent = `${state.lastRows.length} schools within ${radiusKm} km of ${center.label} (${sectorLabel})${suffix}`;
@@ -99,8 +99,7 @@
 
   function applyFilter() {
     if (!state.lastSearch) return;
-    const emailsOnly = emailsOnlyEl && emailsOnlyEl.checked;
-    currentRows = emailsOnly
+    currentRows = emailsOnlyActive
       ? state.lastRows.filter((r) => (r.public_email || "").trim().length > 0)
       : [...state.lastRows];
     renderRows(currentRows);
@@ -195,23 +194,24 @@
     state.postcodeCentroids = postcodes;
     state.suburbCentroids = suburbs;
 
-    // ── Inject "Emails only" checkbox ──────────────────────────────────────
-    const emailsOnlyWrapper = document.createElement("label");
-    emailsOnlyWrapper.className = "emails-only-label";
-    emailsOnlyEl = document.createElement("input");
-    emailsOnlyEl.type = "checkbox";
-    emailsOnlyEl.id = "emailsOnly";
-    emailsOnlyWrapper.appendChild(emailsOnlyEl);
-    emailsOnlyWrapper.appendChild(document.createTextNode(" Emails only"));
-    copyBtn.insertAdjacentElement("afterend", emailsOnlyWrapper);
-    emailsOnlyEl.addEventListener("change", applyFilter);
+    // ── Inject "Emails only" toggle button ────────────────────────────────
+    emailsOnlyBtn = document.createElement("button");
+    emailsOnlyBtn.type = "button";
+    emailsOnlyBtn.textContent = "Emails only";
+    emailsOnlyBtn.className = "btn-toggle";
+    copyBtn.insertAdjacentElement("afterend", emailsOnlyBtn);
+    emailsOnlyBtn.addEventListener("click", () => {
+      emailsOnlyActive = !emailsOnlyActive;
+      emailsOnlyBtn.classList.toggle("active", emailsOnlyActive);
+      applyFilter();
+    });
 
     // ── Inject "Download CSV" button ───────────────────────────────────────
     downloadBtn = document.createElement("button");
     downloadBtn.type = "button";
     downloadBtn.textContent = "Download CSV";
     downloadBtn.disabled = true;
-    emailsOnlyWrapper.insertAdjacentElement("afterend", downloadBtn);
+    emailsOnlyBtn.insertAdjacentElement("afterend", downloadBtn);
     downloadBtn.addEventListener("click", downloadCSV);
 
     // ── Inject Phone column header ─────────────────────────────────────────
